@@ -1,0 +1,32 @@
+,description,formula,hypothesis,type
+errorBalanceOrig,Selisih antara expected balance dan actual balance pengirim,oldbalanceOrg - amount - newbalanceOrig,Nilai != 0 mengindikasikan anomali/fraud,Numerical - Continuous
+errorBalanceDest,Selisih antara expected balance dan actual balance penerima,oldbalanceDest + amount - newbalanceDest,Nilai != 0 mengindikasikan anomali/fraud,Numerical - Continuous
+totalBalanceError,Total magnitude error dari kedua sisi transaksi,abs(errorBalanceOrig) + abs(errorBalanceDest),Nilai tinggi = high fraud probability,Numerical - Continuous
+hasBalanceError,Binary flag untuk keberadaan balance error,1 if abs(error) > 0.01 else 0,Flag=1 strongly correlates dengan fraud,Binary
+hour_of_day,Jam transaksi dalam format 24 jam,step mod 24,Fraud cenderung terjadi pada jam-jam tertentu (malam),Numerical - Discrete (0-23)
+is_night,Flag transaksi malam (00:00 - 06:00),1 if 0 <= hour <= 6 else 0,Transaksi malam lebih berisiko fraud,Binary
+is_peak_hour,Flag transaksi jam kerja (09:00 - 17:00),1 if 9 <= hour <= 17 else 0,Transaksi normal dominan di jam kerja,Binary
+day_of_simulation,Hari ke-n dalam simulasi,step // 24,Pola fraud dapat berubah seiring waktu,Numerical - Discrete
+trans_count,Total jumlah transaksi per customer,COUNT(transactions) GROUP BY nameOrig,Fraudster sering memiliki sedikit transaksi,Numerical - Count
+avg_amount,Rata-rata nominal transaksi per customer,AVG(amount) GROUP BY nameOrig,Baseline untuk mendeteksi deviasi,Numerical - Continuous
+std_amount,Variabilitas nominal transaksi per customer,STDEV(amount) GROUP BY nameOrig,High std = pola tidak konsisten (suspicious),Numerical - Continuous
+account_age_steps,Lama aktif account (dalam steps),MAX(step) - MIN(step) per customer,Account baru lebih berisiko,Numerical - Continuous
+deviation_from_avg,Absolute deviasi nominal dari rata-rata customer,abs(amount - avg_amount),Large deviation = anomali/fraud,Numerical - Continuous
+amount_to_avg_ratio,Rasio nominal terhadap rata-rata customer,amount / (avg_amount + 1),Ratio >> 1 atau << 1 = suspicious,Numerical - Continuous
+is_amount_outlier,Flag outlier berdasarkan Z-score (>2 std),1 if deviation > 2*std else 0,Outliers strongly correlate dengan fraud,Binary
+amount_to_total_ratio,Proporsi transaksi terhadap total historis,amount / total_amount,Single large transaction = red flag,Numerical - Continuous (0-1)
+orig_balance_ratio,Rasio balance baru terhadap lama (pengirim),newbalanceOrig / (oldbalanceOrg + 1),Ratio=0 (depleted) = suspicious,Numerical - Continuous (0-1)
+dest_balance_ratio,Rasio balance baru terhadap lama (penerima),newbalanceDest / (oldbalanceDest + 1),Sudden large increase = suspicious,Numerical - Continuous
+amount_to_orig_balance,Proporsi transaksi terhadap balance pengirim,amount / (oldbalanceOrg + 1),Ratio ≈ 1 (menguras account) = fraud pattern,Numerical - Continuous (0-1+)
+orig_zero_balance,Flag: pengirim memiliki balance awal = 0,1 if oldbalanceOrg == 0 else 0,Zero balance accounts = higher risk,Binary
+type_CASH_OUT,Binary flag untuk transaction type = CASH_OUT,1 if type == CASH_OUT else 0,Certain types more prone to fraud,Binary (One-Hot Encoded)
+type_PAYMENT,Binary flag untuk transaction type = PAYMENT,1 if type == PAYMENT else 0,Certain types more prone to fraud,Binary (One-Hot Encoded)
+type_CASH_IN,Binary flag untuk transaction type = CASH_IN,1 if type == CASH_IN else 0,Certain types more prone to fraud,Binary (One-Hot Encoded)
+type_TRANSFER,Binary flag untuk transaction type = TRANSFER,1 if type == TRANSFER else 0,Certain types more prone to fraud,Binary (One-Hot Encoded)
+type_DEBIT,Binary flag untuk transaction type = DEBIT,1 if type == DEBIT else 0,Certain types more prone to fraud,Binary (One-Hot Encoded)
+is_high_value,Flag transaksi bernilai tinggi (>95th percentile),1 if amount > P95 else 0,High value = higher risk,Binary
+is_new_customer,Flag customer baru (≤2 transaksi),1 if trans_count <= 2 else 0,New customers = higher fraud risk,Binary
+risk_score,Composite risk score (weighted sum of risk factors),"weighted_sum(hasBalanceError*3, is_outlier*2, ...)",Higher score = higher fraud probability,Numerical - Discrete (0-10)
+trans_per_day,Frekuensi transaksi per hari,trans_count / (account_age_days + 1),Very high frequency = bot/fraud,Numerical - Continuous
+time_since_last,Steps sejak transaksi terakhir,current_step - previous_step (per customer),Very short intervals = automated fraud,Numerical - Continuous
+is_rapid_transaction,Flag transaksi dalam interval sangat cepat (<5 steps),1 if time_since_last < 5 else 0,Rapid sequences = suspicious,Binary
