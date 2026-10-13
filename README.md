@@ -1,6 +1,8 @@
 # Deteksi Fraud pada Transaksi Pembayaran Digital UMKM
 
-Analisis komparatif kinerja algoritma Machine Learning untuk mendeteksi transaksi fraud pada sistem pembayaran digital UMKM, dilengkapi dengan Feature Engineering mendalam dan Explainable AI (XAI) menggunakan SHAP.
+Deteksi transaksi fraud pada sistem pembayaran digital UMKM menggunakan model XGBoost, dilengkapi Feature Engineering mendalam (11 kolom menjadi 42 fitur) dan Explainable AI (XAI) menggunakan SHAP.
+
+> **Status:** model yang dilatih di repositori ini adalah **XGBoost**. Perbandingan dengan model lain (misalnya LSTM) belum termasuk dalam repositori ini.
 
 ## Daftar Isi
 
@@ -15,6 +17,7 @@ Analisis komparatif kinerja algoritma Machine Learning untuk mendeteksi transaks
   - [Tahap 5: Explainable AI (SHAP)](#tahap-5-explainable-ai-xai-dengan-shap)
 - [Struktur File](#struktur-file)
 - [Hasil Analisis](#hasil-analisis)
+- [Keterbatasan](#keterbatasan)
 - [Cara Menjalankan](#cara-menjalankan)
 - [Dependensi](#dependensi)
 
@@ -267,10 +270,23 @@ Model utama yang digunakan adalah **XGBoost** (eXtreme Gradient Boosting) dengan
 | `max_depth` | 6 | Kedalaman tree yang cukup tanpa overfitting |
 | `learning_rate` | 0.1 | Learning rate standar |
 | `n_estimators` | 100 | Jumlah tree |
-| `scale_pos_weight` | auto | Bobot tambahan untuk kelas fraud |
-| `tree_method` | `gpu_hist` | Akselerasi GPU (jika tersedia) |
+| `scale_pos_weight` | `len(y_train) / sum(y_train) - 1` | Bernilai sekitar 1 setelah SMOTE (kelas sudah seimbang), jadi praktis tidak menambah bobot |
+| `tree_method` | `gpu_hist` jika CUDA tersedia, selain itu `auto` | Akselerasi GPU bila ada |
 
 Evaluasi dilakukan dengan metrik: **Precision, Recall, F1-Score, dan AUC-ROC**.
+
+#### Hasil evaluasi (data uji 30.000 transaksi)
+
+Hasil dari run di `Fraud_Detection_Run_Output.ipynb` (sampel 100.000 transaksi, split 70/30 stratified, SMOTE hanya pada data latih):
+
+| Metrik | Nilai |
+|--------|-------|
+| Precision | 1,0000 |
+| Recall | 0,9762 |
+| F1-Score | 0,9880 |
+| AUC-ROC | 0,9944 |
+
+Data uji hanya memuat sekitar 42 transaksi fraud (recall 0,9762 setara 41 dari 42 terdeteksi), jadi angka ini punya ketidakpastian yang besar. Lihat bagian [Keterbatasan](#keterbatasan).
 
 ### Tahap 5: Explainable AI (XAI) dengan SHAP
 
@@ -318,6 +334,9 @@ FRAUD_TRANSACTION/
 |-- fraud.py                    # Pipeline utama (versi GPU)
 |-- fraud2.py                   # Pipeline versi CPU dengan debugging tambahan
 |
+|-- Fraud_Detection_Run_Output.ipynb          # Hasil run pipeline (metrik, SHAP)
+|-- Product_Recommendation_ResNet18.ipynb     # Proyek lain: rekomendasi produk UMKM (ResNet18)
+|
 |-- feature_engineering_catalog.csv   # Katalog lengkap 42 fitur yang dibuat
 |-- feature_importance_XGBoost.csv    # Ranking fitur berdasarkan SHAP
 |-- xai_report_XGBoost.txt           # Laporan XAI lengkap
@@ -346,6 +365,15 @@ FRAUD_TRANSACTION/
 
 4. **Top 3 fitur mendominasi prediksi** - `errorBalanceOrig`, `orig_depleted`, dan `amount` menyumbang mayoritas keputusan model, memberikan interpretasi yang jelas dan actionable.
 
+## Keterbatasan
+
+1. **Data sintetis.** PaySim dibuat oleh simulator, dan pola fraud-nya (saldo pengirim terkuras, saldo tidak cocok) sangat khas. Dua fitur teratas (`errorBalanceOrig` dan `orig_depleted`) mendominasi hasil SHAP, sedangkan fitur ke-3 dan seterusnya hanya berkontribusi sekitar 0,001. Performa setinggi ini belum tentu berlaku pada data transaksi nyata.
+2. **Fraud di data uji sedikit.** Sampel 100.000 transaksi hanya memuat 141 fraud, sehingga data uji berisi sekitar 42. Satu kesalahan saja mengubah recall secara nyata. Evaluasi pada seluruh 6,3 juta transaksi atau validasi silang akan lebih meyakinkan.
+3. **Kemungkinan kebocoran data.** Fitur agregasi per pelanggan (`avg_amount`, `trans_count`, dan sejenisnya) serta ambang persentil ke-95 dihitung pada seluruh data **sebelum** split train/test. Idealnya dihitung hanya dari data latih. SMOTE sendiri sudah benar karena hanya diterapkan pada data latih.
+4. **Satu model.** Hanya XGBoost yang dilatih. Library `lightgbm` dan model scikit-learn lain diimpor oleh skrip tetapi tidak dipakai di pipeline utama.
+5. **Penjelasan SHAP** memakai `KernelExplainer` pada 500 sampel; untuk model berbasis pohon, `TreeExplainer` lebih cepat dan eksak.
+6. Metrik hanya tercetak di output notebook, belum disimpan ke file hasil.
+
 ## Cara Menjalankan
 
 ### Prasyarat
@@ -372,8 +400,8 @@ python fraud2.py
 | `scikit-learn` | Preprocessing, evaluasi, model ML |
 | `imbalanced-learn` | SMOTE dan teknik sampling lainnya |
 | `xgboost` | Model XGBoost |
-| `lightgbm` | Model LightGBM |
-| `torch` | Neural network (PyTorch) |
+| `lightgbm` | Diimpor oleh skrip, belum dipakai untuk pelatihan |
+| `torch` | Diimpor oleh skrip; saat ini hanya dipakai untuk mendeteksi GPU |
 | `shap` | Explainable AI |
 | `matplotlib`, `seaborn` | Visualisasi |
 
